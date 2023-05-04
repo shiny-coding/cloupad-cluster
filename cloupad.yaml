@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloupad-server
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      cloupad-server: web
+  template:
+    metadata:
+      labels:
+        cloupad-server: web
+    spec:
+      containers:
+      - name: cloupad-server
+        image: serhiichechin/cloupad-server:v1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 3001
+        volumeMounts:
+          - mountPath: /cloupad/cloupad-server/.env
+            name: dot-env-file
+      volumes:
+      - name: dot-env-file
+        hostPath:
+          path: /run/desktop/mnt/host/c/Dev/cloupad/server/.env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloupad-server-service
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    cloupad-server: web
+  ports:
+  - port: 3001
+    targetPort: 3001
+    nodePort: 30001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloupad-client
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      cloupad-client: web
+  template:
+    metadata:
+      labels:
+        cloupad-client: web
+    spec:
+      containers:
+      - name: cloupad-client
+        image: serhiichechin/cloupad-client:v1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 3000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloupad-client-service
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    cloupad-client: web
+  ports:
+  - port: 3000
+    targetPort: 3000
+    nodePort: 30000
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cloupad-web-server
+  namespace: default
+  labels:
+    cloupad-web-server: web
+spec:
+  containers:
+    - name: cloupad-web-server
+      image: serhiichechin/cloupad-web-server:v1.0.0
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloupad-web-server-service
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    cloupad-web-server: web
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30002
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dev-cloupad
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - dev-cloupad.dev.com
+    secretName: cloupad-tls
+  rules:
+  - host: dev-cloupad.dev.com
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: cloupad-web-server-service
+            port:
+              number: 80
